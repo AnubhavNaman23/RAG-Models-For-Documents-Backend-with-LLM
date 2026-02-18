@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h2>Upload Document</h2>
+<form action="{% url 'upload' %}" method="post" enctype="multipart/form-data" id="upload-form">
+    {% csrf_token %}
+    <input type="file" name="file" id="file-input" required/>
+    <button type="submit">Upload</button>
+</form>
+
+<hr>
+
+<h2>Ask a Question</h2>
+<form id="query-form">
+    {% csrf_token %}
+    <input type="text" id="query-input" placeholder="Ask something..." style="width:60%;" required>
+    <button type="submit">Search</button>
+</form>
+
+<h3>Results:</h3>
+<div id="results"></div>
+
+<script>
+window.addEventListener('load', () => {
+
+    const uploadForm = document.querySelector('#upload-form');
+    const fileInput = document.querySelector('#file-input');
+    const csrf = document.querySelector('input[name="csrfmiddlewaretoken"]');
+
+    // ---- Upload ----
+    uploadForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const formData = new FormData();
+        formData.append('file', fileInput.files[0]);
+
+        const response = await fetch(uploadForm.action, {
+            method: 'POST',
+            headers: {'X-CSRFToken': csrf.value},
+            body: formData
+        });
+
+        const data = await response.json();
+        console.log("Upload:", data);
+
+        if(data.error){
+            alert("Upload failed: " + data.error);
+        } else {
+            alert("File uploaded & indexed successfully! Chunks: " + data.chunk_count);
+        }
+    });
+
+    // ---- Search ----
+    const queryForm = document.querySelector('#query-form');
+    const queryInput = document.querySelector('#query-input');
+    const resultsDiv = document.querySelector('#results');
+
+    queryForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const queryText = queryInput.value.trim();
+        if (!queryText) return alert("Enter a question!");
+
+        const response = await fetch("{% url 'search' %}", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "X-CSRFToken": csrf.value
+            },
+            body: JSON.stringify({ query: queryText })
+        });
+
+        const data = await response.json();
+        console.log("Search:", data);
+
+        resultsDiv.innerHTML = "";
+
+        if(data.error){
+            resultsDiv.innerHTML = `<p style="color:red;">${data.error}</p>`;
+            return;
+        }
+
+        resultsDiv.innerHTML += `<h3>Answer:</h3><p>${data.answer}</p><hr>`;
+
+        data.sources.forEach((item, index) => {
+            resultsDiv.innerHTML += `
+                <p><b>Source ${index+1}:</b> ${item.chunk_text}</p>
+                <hr>
+            `;
+        });
+    });
+
+});
+</script>
+
+{% endblock %}
